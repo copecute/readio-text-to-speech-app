@@ -1,30 +1,37 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
 import 'package:readio/main.dart';
+import 'package:readio/core/localization/app_locale.dart';
+import 'package:readio/services/tts_service.dart';
+import 'package:readio/services/history_service.dart';
+import 'package:readio/services/audio_player_service.dart';
+import 'package:readio/services/preset_service.dart';
+import 'package:readio/services/bgm_service.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('Readio app renders successfully with navigation and branding',
+      (tester) async {
+    final ttsService = TtsService();
+    final historyService = HistoryService();
+    final audioPlayerService = AudioPlayerService();
+    final presetService = PresetService();
+    final bgmService = BgmService();
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
+    await tester.pumpWidget(ReadioApp(
+      initialLanguage: AppLanguage.vi,
+      initialThemeMode: ThemeMode.light,
+      ttsService: ttsService,
+      historyService: historyService,
+      audioPlayerService: audioPlayerService,
+      presetService: presetService,
+      bgmService: bgmService,
+      initialHasCompletedOnboarding: true,
+    ));
     await tester.pump();
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.text('READIO'), findsWidgets);
+    expect(find.text('Tạo giọng nói'), findsWidgets);
+    expect(find.text('Lịch sử lưu'), findsWidgets);
+    expect(find.text('Cài đặt'), findsWidgets);
   });
 }
