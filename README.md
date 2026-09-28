@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <b>Chuyển văn bản thành giọng nói chuyên nghiệp · Nhạc nền · Xuất MP3/WAV</b>
+  <b>Professional text-to-speech · Background music · Export MP3/WAV</b>
 </p>
 
 <p align="center">
@@ -15,95 +15,106 @@
   <img alt="License" src="https://img.shields.io/badge/license-MIT-blue"/>
 </p>
 
+<p align="center">
+  <a href="documents/readme/README.vi.md">🇻🇳 Tiếng Việt</a> ·
+  <a href="README.md">🇺🇸 English</a> ·
+  <a href="documents/readme/README.ja.md">🇯🇵 日本語</a> ·
+  <a href="documents/readme/README.ko.md">🇰🇷 한국어</a> ·
+  <a href="documents/readme/README.zh.md">🇨🇳 中文</a> ·
+  <a href="documents/readme/README.fr.md">🇫🇷 Français</a> ·
+  <a href="documents/readme/README.es.md">🇪🇸 Español</a> ·
+  <a href="documents/readme/README.de.md">🇩🇪 Deutsch</a>
+</p>
+
 ---
 
-## ✨ Tính năng
+## ✨ Features
 
-### 🗣️ Tạo giọng nói (TTS)
-- Nhập văn bản tự do, **dán nhanh**, nạp file `.txt` hoặc dùng văn bản mẫu
-- Đếm ký tự và ước tính thời lượng trực tiếp ngay trên màn hình
-- Lọc và chọn giọng đọc theo ngôn ngữ — hiển thị **cờ quốc gia + tên tiếng người**
-- Cấu hình giọng đọc: **giới tính, phong cách, tốc độ, cao độ (pitch)**
-- Xem trước ngay (preview 10–30s) trước khi tạo file
-- Chia văn bản dài thành chunk 550 ký tự — không bao giờ bị buffer overflow
+### 🗣️ Text-to-Speech (TTS)
+- Type freely, **paste text**, load a `.txt` file, or use a sample text
+- Live character count and estimated duration display
+- Filter and choose voices by language — shows **country flag + human-readable name**
+- Configure voice: **gender, style, speed, and pitch**
+- Preview audio (10–30s) before generating the final file
+- Long texts split into 550-character chunks — no buffer overflow ever
 
-### 🎵 Nhạc nền (BGM)
-- 6 bản nhạc nền có sẵn: Asphyxia, Beat 1, Illlusionary Daytime, Paris, Shiverr, Time Back
-- Thêm nhạc từ **file nội bộ** hoặc **tải từ URL** (lưu về máy để không gián đoạn)
-- Bật/tắt nhạc nền bằng một nút toggle ngay màn hình chính
-- Âm lượng nhạc nền mặc định **30%**, tối đa **80%**
-- Chế độ phát: **lặp 1 bài / lặp danh sách / phát hết rồi dừng**
-- Bỏ qua bài (hiển thị xám) hoặc xoá bài user thêm
+### 🎵 Background Music (BGM)
+- 6 built-in tracks: Asphyxia, Beat 1, Illusionary Daytime, Paris, Shiverr, Time Back
+- Add music from a **local file** or **download from URL** (saved locally for uninterrupted playback)
+- Toggle BGM on/off with a single switch on the main screen
+- Default BGM volume **30%**, max **80%**
+- Playback modes: **loop one / loop all / play through and stop**
+- Skip tracks (grayed out) or delete user-added tracks
 
-### 📁 Xuất file
-- Chọn định dạng **MP3** hoặc **WAV** ngay tại màn hình tạo
-- Ghép nhạc nền vào file xuất bằng **FFmpeg** — hỗ trợ mọi định dạng nhạc nền
-- Tên file tự sinh từ **30 ký tự đầu** của nội dung văn bản
-- Overlay tiến trình toàn màn hình với **progress ring** và **% hoàn thành** rõ ràng
-- **Nút Huỷ tạo** — dừng ngay và rollback toàn bộ file tạm
-- Lưu tại `/storage/emulated/0/copecute/readio/` (Android)
+### 📁 Export
+- Choose **MP3** or **WAV** format directly on the create screen
+- Mix background music into the export using **FFmpeg** — supports any audio format
+- Filename auto-generated from the **first 30 characters** of the text
+- Full-screen progress overlay with **animated progress ring** and clear **% complete**
+- **Cancel button** — stops immediately and rolls back all temporary files
+- Saved to `/storage/emulated/0/copecute/readio/` (Android)
 
-### 🎚️ Preset
-- Lưu cấu hình giọng đọc (tốc độ, cao độ, giọng) thành preset
-- Preset mẫu tích hợp sẵn: Bình thường, Sách nói, Podcast
-- Áp dụng preset một chạm
+### 🎚️ Presets
+- Save voice configs (speed, pitch, voice) as presets
+- Built-in presets: Normal, Audiobook, Podcast
+- Apply any preset with a single tap
 
-### 📚 Lịch sử
-- Toàn bộ file đã tạo được lưu vào lịch sử kèm đường dẫn thư mục
-- Tìm kiếm theo tên file hoặc nội dung văn bản
-- **Phát lại inline** với thanh tiến trình và waveform animation ngay trong danh sách
-- Chia sẻ, xoá từ lịch sử
-- Hiển thị metadata: giọng đọc, dung lượng, ngày tạo
+### 📚 History
+- All generated files saved with their folder path
+- Search by filename or text content
+- **Inline playback** with progress bar and waveform animation
+- Share or delete from history
+- Metadata: voice, file size, date created
 
-### ⚙️ Cài đặt
-- Chọn **ngôn ngữ giao diện** (8 ngôn ngữ) với giao diện lưới cờ quốc gia
-- Chủ đề: **Theo hệ thống / Sáng / Tối**
-- Chọn **TTS engine** (hỗ trợ nhiều engine: Google TTS, …) và làm mới danh sách giọng đọc
-- Quản lý thư mục lưu âm thanh, sao chép đường dẫn nhanh
+### ⚙️ Settings
+- Choose **UI language** (8 languages) via a flag-grid interface
+- Theme: **System / Light / Dark**
+- Select **TTS engine** (e.g., Google TTS) and refresh the voice list
+- Manage audio output folder, copy path quickly
 
-### 🌍 Đa ngôn ngữ
-Hỗ trợ **8 ngôn ngữ** giao diện:
-🇻🇳 Tiếng Việt · 🇺🇸 English · 🇯🇵 日本語 · 🇰🇷 한국어 · 🇨🇳 中文 · 🇫🇷 Français · 🇪🇸 Español · 🇩🇪 Deutsch
+### 🌍 Localization
+Supports **8 UI languages**:
+🇻🇳 Vietnamese · 🇺🇸 English · 🇯🇵 Japanese · 🇰🇷 Korean · 🇨🇳 Chinese · 🇫🇷 French · 🇪🇸 Spanish · 🇩🇪 German
 
 ### 🎨 UX / UI
-- Dark mode mặc định với màu sắc tinh tế (teal accent trên nền xanh đậm)
-- Overlay toàn màn hình khi đang tạo file — progress ring animate mượt
-- Không cần kết nối mạng (**offline hoàn toàn**)
+- Default dark mode with a refined teal accent on deep navy
+- Full-screen overlay during generation — smooth animated progress ring
+- **Fully offline** — no internet connection required
 
 ---
 
-## 📱 Ảnh chụp màn hình
+## 📱 Screenshots
 
 <p align="center">
-  <img src="https://i.imgur.com/wrcop0w.jpeg" alt="Màn hình Tạo giọng nói" width="22%"/>
+  <img src="https://i.imgur.com/wrcop0w.jpeg" alt="Create Screen" width="22%"/>
   &nbsp;
-  <img src="https://i.imgur.com/l00Rw50.jpeg" alt="Tiến trình tạo âm thanh" width="22%"/>
+  <img src="https://i.imgur.com/l00Rw50.jpeg" alt="Generating (81%)" width="22%"/>
   &nbsp;
-  <img src="https://i.imgur.com/vVt0X26.jpeg" alt="Màn hình Lịch sử" width="22%"/>
+  <img src="https://i.imgur.com/vVt0X26.jpeg" alt="History Screen" width="22%"/>
   &nbsp;
-  <img src="https://i.imgur.com/wTLSYk5.jpeg" alt="Màn hình Cài đặt" width="22%"/>
+  <img src="https://i.imgur.com/wTLSYk5.jpeg" alt="Settings Screen" width="22%"/>
 </p>
 
 <p align="center">
-  <em>Tạo giọng nói</em>
+  <em>Create voice</em>
   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <em>Đang tạo (81%)</em>
+  <em>Generating (81%)</em>
   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <em>Lịch sử lưu</em>
+  <em>History</em>
   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <em>Cài đặt</em>
+  <em>Settings</em>
 </p>
 
 ---
 
-## 🚀 Cài đặt & Build
+## 🚀 Setup & Build
 
-### Yêu cầu
+### Requirements
 - Flutter SDK ≥ 3.13
 - Android SDK API 24+ (Android 7.0 Nougat)
 - Java 17+
 
-### Clone & chạy
+### Clone & run
 ```bash
 git clone https://github.com/copecute/readio.git
 cd readio
@@ -120,77 +131,77 @@ flutter build apk --debug
 flutter build apk --release
 ```
 
-File APK xuất ra tại: `build/app/outputs/flutter-apk/`
+Output APK: `build/app/outputs/flutter-apk/`
 
 ---
 
-## 🗂️ Cấu trúc dự án
+## 🗂️ Project Structure
 
 ```
 lib/
 ├── core/
-│   └── localization/       # app_locale.dart — 8 ngôn ngữ
+│   └── localization/       # app_locale.dart — 8 languages
 ├── models/                 # BgmTrack, TtsVoiceItem, HistoryAudioItem, ...
 ├── services/
 │   ├── tts_service.dart    # TTS engine, synthesizeToFile, chunk merge
-│   ├── bgm_service.dart    # Quản lý nhạc nền
+│   ├── bgm_service.dart    # Background music management
 │   ├── audio_mixer.dart    # FFmpeg BGM mixing
-│   ├── wav_merger.dart     # Ghép WAV chunk thuần Dart
+│   ├── wav_merger.dart     # Pure-Dart WAV chunk merging
 │   ├── audio_player_service.dart
 │   ├── history_service.dart
 │   └── preset_service.dart
 ├── views/
-│   ├── create_view.dart    # Màn hình tạo âm thanh (màn hình chính)
+│   ├── create_view.dart    # Main create screen
 │   ├── history_view.dart
 │   ├── settings_view.dart
 │   ├── home_view.dart
 │   └── welcome_view.dart
-└── widgets/                # Các widget dùng lại
+└── widgets/                # Reusable widgets
 
 android/
-└── app/src/main/kotlin/.../MainActivity.kt  # Export, scan media, storage permission
+└── app/src/main/kotlin/.../MainActivity.kt  # Export, media scan, storage permission
 assets/
-└── audio/                  # Nhạc nền mặc định (MP3)
+└── audio/                  # Default BGM tracks (MP3)
 ```
 
 ---
 
-## 📦 Dependencies chính
+## 📦 Key Dependencies
 
-| Package | Mục đích |
+| Package | Purpose |
 |---|---|
-| `flutter_tts` | TTS engine Android |
-| `ffmpeg_kit_flutter_new` | Ghép nhạc nền vào file xuất |
-| `audioplayers` | Phát nhạc nền + preview giọng |
-| `file_picker` | Chọn file nhạc nền |
-| `share_plus` | Chia sẻ file |
-| `path_provider` | Đường dẫn file tạm |
-| `shared_preferences` | Lưu cài đặt, lịch sử, preset |
+| `flutter_tts` | Android TTS engine |
+| `ffmpeg_kit_flutter_new` | Mix BGM into exported file |
+| `audioplayers` | BGM playback + voice preview |
+| `file_picker` | Pick local music files |
+| `share_plus` | Share files |
+| `path_provider` | Temp file paths |
+| `shared_preferences` | Persist settings, history, presets |
 
 ---
 
-## 🛠️ Luồng hoạt động
+## 🛠️ How It Works
 
 ```
-Nhập văn bản
+Enter text
     ↓
-Chọn giọng đọc + tốc độ + cao độ
+Select voice + speed + pitch
     ↓
-(Tuỳ chọn) Chọn nhạc nền + âm lượng + chế độ lặp
+(Optional) Select BGM + volume + loop mode
     ↓
-Bấm "Tạo âm thanh & Lưu tệp"
+Tap "Create Audio"
     ↓
-TTS chia văn bản thành chunks 550 ký tự
+TTS splits text into 550-char chunks
     ↓
-Synthesize từng chunk → WAV
+Synthesize each chunk → WAV
     ↓
-Ghép WAV chunks → merged.wav (thuần Dart)
+Merge WAV chunks → merged.wav (pure Dart)
     ↓
 FFmpeg: merged.wav + bgm.mp3 → output.mp3 / output.wav
     ↓
-Export ra /storage/emulated/0/copecute/readio/
+Export to /storage/emulated/0/copecute/readio/
     ↓
-Lưu vào lịch sử
+Save to history
 ```
 
 ---
@@ -198,3 +209,4 @@ Lưu vào lịch sử
 ## 📄 License
 
 MIT © 2026 [copecute](https://github.com/copecute)
+

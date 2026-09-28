@@ -64,9 +64,13 @@ class _HistoryViewState extends State<HistoryView> {
             style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
             onPressed: () async {
               Navigator.pop(ctx);
-              if (_activePlayingItem?.id == item.id) {
-                widget.audioPlayerService.stop();
-                _activePlayingItem = null;
+              if (_activePlayingItem?.id == item.id ||
+                  widget.audioPlayerService.currentItem?.id == item.id) {
+                await widget.audioPlayerService.stop();
+                widget.audioPlayerService.clearCurrentItem();
+                setState(() {
+                  _activePlayingItem = null;
+                });
               }
               await widget.historyService.deleteItem(item.id);
               setState(() {});
@@ -77,6 +81,7 @@ class _HistoryViewState extends State<HistoryView> {
       ),
     );
   }
+
 
   void _showClearAllDialog() {
     showDialog(
