@@ -194,7 +194,7 @@ class _WelcomeViewState extends State<WelcomeView> with WidgetsBindingObserver {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(28),
                 child: Image.asset(
-                  'assets/logo-readio.png',
+                  'assets/logo.png',
                   width: 108,
                   height: 108,
                   fit: BoxFit.contain,
@@ -238,7 +238,7 @@ class _WelcomeViewState extends State<WelcomeView> with WidgetsBindingObserver {
           _buildFeatureTile(
             theme,
             icon: Icons.offline_bolt_rounded,
-            color: const Color(0xFF6366F1),
+            color: theme.colorScheme.primary,
             title: context.tr('welcome_feat1_title'),
             desc: context.tr('welcome_feat1_desc'),
           ),
@@ -246,7 +246,7 @@ class _WelcomeViewState extends State<WelcomeView> with WidgetsBindingObserver {
           _buildFeatureTile(
             theme,
             icon: Icons.tune_rounded,
-            color: const Color(0xFF06B6D4),
+            color: theme.colorScheme.secondary,
             title: context.tr('welcome_feat2_title'),
             desc: context.tr('welcome_feat2_desc'),
           ),
@@ -357,7 +357,7 @@ class _WelcomeViewState extends State<WelcomeView> with WidgetsBindingObserver {
           _buildPermissionCard(
             theme,
             icon: Icons.folder_special_rounded,
-            color: const Color(0xFF6366F1),
+            color: theme.colorScheme.primary,
             title: context.tr('perm_storage_title'),
             desc: context.tr('perm_storage_desc'),
             isGranted: _hasStoragePermission,

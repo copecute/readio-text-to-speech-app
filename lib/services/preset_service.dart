@@ -7,6 +7,14 @@ class PresetService extends ChangeNotifier {
   static const _storageKey = 'readio_tts_presets';
   static const _activePresetKey = 'readio_active_preset_id';
 
+  /// Legacy built-in IDs — ignored / cleared on load.
+  static const _legacyBuiltInIds = {
+    'preset_standard',
+    'preset_slow_reading',
+    'preset_fast_news',
+    'preset_storytelling',
+  };
+
   List<TtsPreset> _presets = [];
   List<TtsPreset> get presets => List.unmodifiable(_presets);
 
@@ -18,65 +26,91 @@ class PresetService extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     final jsonStr = prefs.getString(_storageKey);
 
-    List<TtsPreset> customPresets = [];
+    List<TtsPreset> loaded = [];
     if (jsonStr != null && jsonStr.isNotEmpty) {
       try {
         final decoded = jsonDecode(jsonStr) as List<dynamic>;
-        customPresets = decoded
+        loaded = decoded
             .map((item) => TtsPreset.fromJson(item as Map<String, dynamic>))
+            .where((p) => !_legacyBuiltInIds.contains(p.id))
+            .map((p) {
+              // Normalize old excessive speech-rate scale
+              if (p.speechRate > 0.8) {
+                return p.copyWith(speechRate: 0.50);
+              }
+              return p;
+            })
             .toList();
       } catch (e) {
         debugPrint('Error parsing saved presets: $e');
       }
     }
 
-    // Ensure built-in presets are always up to date with the calibrated speeds
-    customPresets = customPresets
-        .where((p) => !p.isBuiltIn && !TtsPreset.defaultPresets.any((d) => d.id == p.id))
-        .map((p) {
-          // If custom preset had excessive speed from old scale (>0.8), normalize to standard
-          if (p.speechRate > 0.8) {
-            return TtsPreset(
-              id: p.id,
-              name: p.name,
-              voiceKey: p.voiceKey,
-              voiceName: p.voiceName,
-              locale: p.locale,
-              speechRate: 0.50,
-              pitch: p.pitch,
-              volume: p.volume,
-              isBuiltIn: false,
-            );
-          }
-          return p;
-        })
-        .toList();
+    _presets = loaded;
 
-    _presets = [...TtsPreset.defaultPresets, ...customPresets];
+    final savedActiveId = prefs.getString(_activePresetKey);
+    if (savedActiveId != null &&
+        savedActiveId.isNotEmpty &&
+        !_legacyBuiltInIds.contains(savedActiveId)) {
+      _activePreset = _presets.cast<TtsPreset?>().firstWhere(
+            (p) => p?.id == savedActiveId,
+            orElse: () => null,
+          );
+    } else {
+      _activePreset = _presets.isNotEmpty ? _presets.first : null;
+    }
 
-    final savedActiveId = prefs.getString(_activePresetKey) ?? 'preset_standard';
-    _activePreset = _presets.firstWhere(
-      (p) => p.id == savedActiveId,
-      orElse: () => _presets.first,
-    );
+    // Persist cleaned list (drops any leftover built-ins from old installs)
+    await _persist();
     notifyListeners();
   }
 
   Future<void> setActivePreset(TtsPreset? preset) async {
     _activePreset = preset;
     notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
     if (preset != null) {
-      final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_activePresetKey, preset.id);
+    } else {
+      await prefs.remove(_activePresetKey);
     }
   }
 
   Future<void> setActivePresetById(String id) async {
-    final found = _presets.firstWhere(
-      (p) => p.id == id,
-      orElse: () => _presets.first,
-    );
+    final found = _presets.cast<TtsPreset?>().firstWhere(
+          (p) => p?.id == id,
+          orElse: () => null,
+        );
     await setActivePreset(found);
+  }
+
+  /// Sync the active (or named) user preset with latest live TTS values.
+  Future<void> updatePresetSettings({
+    required String id,
+    String? voiceKey,
+    String? voiceName,
+    String? locale,
+    required double speechRate,
+    required double pitch,
+    required double volume,
+  }) async {
+    final idx = _presets.indexWhere((p) => p.id == id);
+    if (idx < 0) return;
+
+    final updated = _presets[idx].copyWith(
+      voiceKey: voiceKey,
+      voiceName: voiceName,
+      locale: locale,
+      speechRate: speechRate,
+      pitch: pitch,
+      volume: volume,
+    );
+    _presets[idx] = updated;
+    if (_activePreset?.id == id) {
+      _activePreset = updated;
+    }
+    await _persist();
+    notifyListeners();
   }
 
   Future<void> savePreset(TtsPreset newPreset) async {
@@ -92,12 +126,11 @@ class PresetService extends ChangeNotifier {
   }
 
   Future<void> deletePreset(String id) async {
-    final preset = _presets.firstWhere((p) => p.id == id, orElse: () => throw Exception('Not found'));
-    if (preset.isBuiltIn) return; // Cannot delete built-in presets
+    if (!_presets.any((p) => p.id == id)) return;
 
     _presets.removeWhere((p) => p.id == id);
     if (_activePreset?.id == id) {
-      _activePreset = _presets.first;
+      _activePreset = _presets.isNotEmpty ? _presets.first : null;
     }
     await _persist();
     notifyListeners();
@@ -105,10 +138,14 @@ class PresetService extends ChangeNotifier {
 
   Future<void> _persist() async {
     final prefs = await SharedPreferences.getInstance();
-    final customOnly = _presets.where((p) => !p.isBuiltIn).map((p) => p.toJson()).toList();
-    await prefs.setString(_storageKey, jsonEncode(customOnly));
+    await prefs.setString(
+      _storageKey,
+      jsonEncode(_presets.map((p) => p.toJson()).toList()),
+    );
     if (_activePreset != null) {
       await prefs.setString(_activePresetKey, _activePreset!.id);
+    } else {
+      await prefs.remove(_activePresetKey);
     }
   }
 }

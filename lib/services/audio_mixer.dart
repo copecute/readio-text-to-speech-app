@@ -107,6 +107,55 @@ class AudioMixer {
     }
   }
 
+  /// Converts [inputFile] (typically WAV) into the format implied by [outputFile]'s extension.
+  static Future<File> convertFormat({
+    required File inputFile,
+    required File outputFile,
+  }) async {
+    if (!inputFile.existsSync() || inputFile.lengthSync() < 44) {
+      return inputFile;
+    }
+
+    final inExt = inputFile.path.split('.').last.toLowerCase();
+    final outExt = outputFile.path.split('.').last.toLowerCase();
+    if (inExt == outExt) {
+      try {
+        await inputFile.copy(outputFile.path);
+        return outputFile;
+      } catch (_) {
+        return inputFile;
+      }
+    }
+
+    try {
+      final String cmd = [
+        '-y',
+        '-i "${inputFile.path}"',
+        ...(_codecArgs(outputFile.path)),
+        '"${outputFile.path}"',
+      ].join(' ');
+
+      debugPrint('AudioMixer convert cmd: $cmd');
+      final session = await FFmpegKit.execute(cmd);
+      final returnCode = await session.getReturnCode();
+
+      if (ReturnCode.isSuccess(returnCode) &&
+          outputFile.existsSync() &&
+          outputFile.lengthSync() > 100) {
+        debugPrint(
+            'AudioMixer: convert OK → ${outputFile.path} (${outputFile.lengthSync()} bytes)');
+        return outputFile;
+      }
+
+      final logs = await session.getAllLogsAsString();
+      debugPrint('AudioMixer convert failed. Logs:\n$logs');
+      return await _fallback(inputFile, outputFile);
+    } catch (e, st) {
+      debugPrint('AudioMixer convert error: $e\n$st');
+      return await _fallback(inputFile, outputFile);
+    }
+  }
+
   static Future<File> _fallback(File src, File out) async {
     try {
       await src.copy(out.path);

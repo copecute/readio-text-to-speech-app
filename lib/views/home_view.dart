@@ -124,7 +124,7 @@ class _HomeViewState extends State<HomeView> {
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: Image.asset(
-              'assets/logo-readio.png',
+              'assets/logo.png',
               width: 36,
               height: 36,
               fit: BoxFit.contain,
@@ -223,7 +223,7 @@ class _HomeViewState extends State<HomeView> {
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: Image.asset(
-                'assets/logo-readio.png',
+                'assets/logo.png',
                 width: 44,
                 height: 44,
                 fit: BoxFit.contain,

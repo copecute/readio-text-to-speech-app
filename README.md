@@ -1,7 +1,7 @@
 # 🎙️ Readio — Text-to-Speech Studio
 
 <p align="center">
-  <img src="assets/logo-readio.png" alt="Readio Logo" width="120"/>
+  <img src="assets/logo-readio.png" alt="Readio Logo" width="160"/>
 </p>
 
 <p align="center">
@@ -19,26 +19,29 @@
 
 ## ✨ Tính năng
 
-### 🗣️ Đọc văn bản (TTS)
-- Đọc văn bản bất kỳ với giọng đọc hệ thống (Android TTS engine)
+### 🗣️ Tạo giọng nói (TTS)
+- Nhập văn bản tự do, **dán nhanh**, nạp file `.txt` hoặc dùng văn bản mẫu
+- Đếm ký tự và ước tính thời lượng trực tiếp ngay trên màn hình
 - Lọc và chọn giọng đọc theo ngôn ngữ — hiển thị **cờ quốc gia + tên tiếng người**
-- Điều chỉnh **tốc độ** (0.5× – 1.5×) và **cao độ giọng** (pitch)
-- Xem trước ngay (preview) từng giọng đọc trước khi áp dụng
+- Cấu hình giọng đọc: **giới tính, phong cách, tốc độ, cao độ (pitch)**
+- Xem trước ngay (preview 10–30s) trước khi tạo file
 - Chia văn bản dài thành chunk 550 ký tự — không bao giờ bị buffer overflow
 
 ### 🎵 Nhạc nền (BGM)
 - 6 bản nhạc nền có sẵn: Asphyxia, Beat 1, Illlusionary Daytime, Paris, Shiverr, Time Back
 - Thêm nhạc từ **file nội bộ** hoặc **tải từ URL** (lưu về máy để không gián đoạn)
+- Bật/tắt nhạc nền bằng một nút toggle ngay màn hình chính
 - Âm lượng nhạc nền mặc định **30%**, tối đa **80%**
 - Chế độ phát: **lặp 1 bài / lặp danh sách / phát hết rồi dừng**
 - Bỏ qua bài (hiển thị xám) hoặc xoá bài user thêm
 
 ### 📁 Xuất file
-- Xuất định dạng **MP3** hoặc **WAV** (user tự chọn)
+- Chọn định dạng **MP3** hoặc **WAV** ngay tại màn hình tạo
 - Ghép nhạc nền vào file xuất bằng **FFmpeg** — hỗ trợ mọi định dạng nhạc nền
 - Tên file tự sinh từ **30 ký tự đầu** của nội dung văn bản
+- Overlay tiến trình toàn màn hình với **progress ring** và **% hoàn thành** rõ ràng
+- **Nút Huỷ tạo** — dừng ngay và rollback toàn bộ file tạm
 - Lưu tại `/storage/emulated/0/copecute/readio/` (Android)
-- Thông báo hệ thống (notification) hiển thị tiến trình
 
 ### 🎚️ Preset
 - Lưu cấu hình giọng đọc (tốc độ, cao độ, giọng) thành preset
@@ -46,27 +49,50 @@
 - Áp dụng preset một chạm
 
 ### 📚 Lịch sử
-- Toàn bộ file đã tạo được lưu vào lịch sử
+- Toàn bộ file đã tạo được lưu vào lịch sử kèm đường dẫn thư mục
 - Tìm kiếm theo tên file hoặc nội dung văn bản
-- Phát lại, chia sẻ, xoá từ lịch sử
-- Hiển thị metadata: giọng đọc, thời lượng, dung lượng, ngày tạo
+- **Phát lại inline** với thanh tiến trình và waveform animation ngay trong danh sách
+- Chia sẻ, xoá từ lịch sử
+- Hiển thị metadata: giọng đọc, dung lượng, ngày tạo
+
+### ⚙️ Cài đặt
+- Chọn **ngôn ngữ giao diện** (8 ngôn ngữ) với giao diện lưới cờ quốc gia
+- Chủ đề: **Theo hệ thống / Sáng / Tối**
+- Chọn **TTS engine** (hỗ trợ nhiều engine: Google TTS, …) và làm mới danh sách giọng đọc
+- Quản lý thư mục lưu âm thanh, sao chép đường dẫn nhanh
 
 ### 🌍 Đa ngôn ngữ
 Hỗ trợ **8 ngôn ngữ** giao diện:
 🇻🇳 Tiếng Việt · 🇺🇸 English · 🇯🇵 日本語 · 🇰🇷 한국어 · 🇨🇳 中文 · 🇫🇷 Français · 🇪🇸 Español · 🇩🇪 Deutsch
 
 ### 🎨 UX / UI
-- Dark mode mặc định với màu sắc tinh tế
-- Overlay toàn màn hình khi đang tạo file (không bị che bởi dialog)
-- Progress ring animate mượt (TweenAnimationBuilder)
-- **Nút Huỷ** — dừng và rollback toàn bộ file tạm ngay lập tức
-- Không cần kết nối mạng (offline hoàn toàn)
+- Dark mode mặc định với màu sắc tinh tế (teal accent trên nền xanh đậm)
+- Overlay toàn màn hình khi đang tạo file — progress ring animate mượt
+- Không cần kết nối mạng (**offline hoàn toàn**)
 
 ---
 
 ## 📱 Ảnh chụp màn hình
 
-> *(Cập nhật sau khi có bản build release)*
+<p align="center">
+  <img src="https://i.imgur.com/wrcop0w.jpeg" alt="Màn hình Tạo giọng nói" width="22%"/>
+  &nbsp;
+  <img src="https://i.imgur.com/l00Rw50.jpeg" alt="Tiến trình tạo âm thanh" width="22%"/>
+  &nbsp;
+  <img src="https://i.imgur.com/vVt0X26.jpeg" alt="Màn hình Lịch sử" width="22%"/>
+  &nbsp;
+  <img src="https://i.imgur.com/wTLSYk5.jpeg" alt="Màn hình Cài đặt" width="22%"/>
+</p>
+
+<p align="center">
+  <em>Tạo giọng nói</em>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <em>Đang tạo (81%)</em>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <em>Lịch sử lưu</em>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <em>Cài đặt</em>
+</p>
 
 ---
 

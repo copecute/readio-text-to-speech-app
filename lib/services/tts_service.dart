@@ -28,6 +28,12 @@ enum TtsPlaybackState { stopped, playing, paused }
 
 class TtsService with ChangeNotifier {
   static const String _favStorageKey = 'readio_favorite_voice_keys_v1';
+  static const String _speechRateKey = 'readio_tts_speech_rate';
+  static const String _pitchKey = 'readio_tts_pitch';
+  static const String _volumeKey = 'readio_tts_volume';
+  static const String _voiceKeyPref = 'readio_tts_voice_key';
+  static const String _exportFormatKey = 'readio_export_format';
+
   final FlutterTts _tts = FlutterTts();
 
   TtsPlaybackState _playbackState = TtsPlaybackState.stopped;
@@ -59,6 +65,8 @@ class TtsService with ChangeNotifier {
   double _volume = 1.0; // 0.0 to 1.0
   double get volume => _volume;
 
+  String? _pendingVoiceKey;
+
   // Favorite voices
   final Set<String> _favoriteVoiceKeys = {};
   Set<String> get favoriteVoiceKeys => Set.unmodifiable(_favoriteVoiceKeys);
@@ -82,6 +90,7 @@ class TtsService with ChangeNotifier {
 
   Future<void> initialize() async {
     await _loadFavorites();
+    await _loadPersistedSettings();
 
     _tts.setStartHandler(() {
       _playbackState = TtsPlaybackState.playing;
@@ -175,22 +184,167 @@ class TtsService with ChangeNotifier {
         }).toList();
       }
 
-      // Default selection (prefer Vietnamese or English or first available)
+      // Restore saved voice, else prefer Vietnamese / English / first available
       if (_allVoices.isNotEmpty) {
-        final viVoice = _allVoices.cast<TtsVoiceItem?>().firstWhere(
-              (v) => v?.locale.toLowerCase().startsWith('vi') == true,
-              orElse: () => null,
-            );
-        final enVoice = _allVoices.cast<TtsVoiceItem?>().firstWhere(
-              (v) => v?.locale.toLowerCase().startsWith('en') == true,
-              orElse: () => null,
-            );
-        _currentVoice = viVoice ?? enVoice ?? _allVoices.first;
-        await setVoice(_currentVoice!);
+        TtsVoiceItem? restored;
+        if (_pendingVoiceKey != null) {
+          restored = _allVoices.cast<TtsVoiceItem?>().firstWhere(
+                (v) => v?.uniqueKey == _pendingVoiceKey,
+                orElse: () => null,
+              );
+        }
+        if (restored == null) {
+          final viVoice = _allVoices.cast<TtsVoiceItem?>().firstWhere(
+                (v) => v?.locale.toLowerCase().startsWith('vi') == true,
+                orElse: () => null,
+              );
+          final enVoice = _allVoices.cast<TtsVoiceItem?>().firstWhere(
+                (v) => v?.locale.toLowerCase().startsWith('en') == true,
+                orElse: () => null,
+              );
+          restored = viVoice ?? enVoice ?? _allVoices.first;
+        }
+        _currentVoice = restored;
+        await setVoice(_currentVoice!, persist: false);
       }
     } catch (e) {
       debugPrint('Error loading TTS voices: $e');
     }
+  }
+
+  Future<void> _loadPersistedSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _speechRate = (prefs.getDouble(_speechRateKey) ?? _speechRate).clamp(0.1, 1.0);
+      _pitch = (prefs.getDouble(_pitchKey) ?? _pitch).clamp(0.5, 2.0);
+      _volume = (prefs.getDouble(_volumeKey) ?? _volume).clamp(0.0, 1.0);
+      _pendingVoiceKey = prefs.getString(_voiceKeyPref);
+    } catch (e) {
+      debugPrint('Error loading TTS settings: $e');
+    }
+  }
+
+  Future<void> _persistSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble(_speechRateKey, _speechRate);
+      await prefs.setDouble(_pitchKey, _pitch);
+      await prefs.setDouble(_volumeKey, _volume);
+      if (_currentVoice != null) {
+        await prefs.setString(_voiceKeyPref, _currentVoice!.uniqueKey);
+      }
+    } catch (e) {
+      debugPrint('Error persisting TTS settings: $e');
+    }
+  }
+
+  /// Persist + restore preferred export format (`mp3` | `wav`). Defaults to mp3.
+  static Future<String> loadExportFormat() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_exportFormatKey);
+    if (saved == 'wav' || saved == 'mp3') return saved!;
+    return 'mp3';
+  }
+
+  static Future<void> saveExportFormat(String format) async {
+    final normalized = format == 'wav' ? 'wav' : 'mp3';
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_exportFormatKey, normalized);
+  }
+
+  /// Apply a preset's rate/pitch/volume/voice into the live TTS engine and persist.
+  Future<void> applyPresetValues({
+    required double speechRate,
+    required double pitch,
+    required double volume,
+    String? voiceKey,
+    String? locale,
+    String? voiceName,
+  }) async {
+    _speechRate = speechRate.clamp(0.1, 1.0);
+    _pitch = pitch.clamp(0.5, 2.0);
+    _volume = volume.clamp(0.0, 1.0);
+
+    final resolved = resolveVoice(
+      voiceKey: voiceKey,
+      locale: locale,
+      voiceName: voiceName,
+    );
+
+    if (resolved != null) {
+      // Always force-apply voice so switching presets actually changes the speaker
+      await setVoice(resolved, persist: false);
+    } else {
+      await applySettings();
+    }
+
+    await _persistSettings();
+    notifyListeners();
+  }
+
+  /// Resolve a stored preset voice against the live engine voice list.
+  /// Tries uniqueKey → locale-normalized key → name+locale → name → locale.
+  TtsVoiceItem? resolveVoice({
+    String? voiceKey,
+    String? locale,
+    String? voiceName,
+  }) {
+    if (_allVoices.isEmpty) return null;
+
+    String norm(String l) => l.toLowerCase().replaceAll('_', '-').trim();
+
+    if (voiceKey != null && voiceKey.isNotEmpty) {
+      final exact = _allVoices.cast<TtsVoiceItem?>().firstWhere(
+            (v) => v?.uniqueKey == voiceKey,
+            orElse: () => null,
+          );
+      if (exact != null) return exact;
+
+      final sep = voiceKey.indexOf(':');
+      if (sep > 0) {
+        final keyLocale = voiceKey.substring(0, sep);
+        final keyName = voiceKey.substring(sep + 1);
+        final byNorm = _allVoices.cast<TtsVoiceItem?>().firstWhere(
+              (v) =>
+                  v != null &&
+                  norm(v.locale) == norm(keyLocale) &&
+                  v.name == keyName,
+              orElse: () => null,
+            );
+        if (byNorm != null) return byNorm;
+
+        final byName = _allVoices.cast<TtsVoiceItem?>().firstWhere(
+              (v) => v?.name == keyName,
+              orElse: () => null,
+            );
+        if (byName != null) return byName;
+      }
+    }
+
+    if (voiceName != null &&
+        voiceName.isNotEmpty &&
+        locale != null &&
+        locale.isNotEmpty) {
+      final byBoth = _allVoices.cast<TtsVoiceItem?>().firstWhere(
+            (v) =>
+                v != null &&
+                norm(v.locale) == norm(locale) &&
+                (v.name == voiceName ||
+                    v.getFriendlyName() == voiceName),
+            orElse: () => null,
+          );
+      if (byBoth != null) return byBoth;
+    }
+
+    if (locale != null && locale.isNotEmpty) {
+      final byLocale = _allVoices.cast<TtsVoiceItem?>().firstWhere(
+            (v) => v != null && norm(v.locale) == norm(locale),
+            orElse: () => null,
+          );
+      if (byLocale != null) return byLocale;
+    }
+
+    return null;
   }
 
   Future<void> applySettings() async {
@@ -210,7 +364,7 @@ class TtsService with ChangeNotifier {
     }
   }
 
-  Future<void> setVoice(TtsVoiceItem voice) async {
+  Future<void> setVoice(TtsVoiceItem voice, {bool persist = true}) async {
     _currentVoice = voice;
     try {
       await _tts.setLanguage(voice.locale);
@@ -221,6 +375,7 @@ class TtsService with ChangeNotifier {
     } catch (e) {
       debugPrint('Failed to set voice: $e');
     }
+    if (persist) await _persistSettings();
     notifyListeners();
   }
 
@@ -235,21 +390,24 @@ class TtsService with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> setSpeechRate(double rate) async {
+  Future<void> setSpeechRate(double rate, {bool persist = true}) async {
     _speechRate = rate.clamp(0.1, 1.0);
     await _tts.setSpeechRate(_speechRate);
+    if (persist) await _persistSettings();
     notifyListeners();
   }
 
-  Future<void> setPitch(double pitch) async {
+  Future<void> setPitch(double pitch, {bool persist = true}) async {
     _pitch = pitch.clamp(0.5, 2.0);
     await _tts.setPitch(_pitch);
+    if (persist) await _persistSettings();
     notifyListeners();
   }
 
-  Future<void> setVolume(double volume) async {
+  Future<void> setVolume(double volume, {bool persist = true}) async {
     _volume = volume.clamp(0.0, 1.0);
     await _tts.setVolume(_volume);
+    if (persist) await _persistSettings();
     notifyListeners();
   }
 
@@ -500,8 +658,8 @@ class TtsService with ChangeNotifier {
     return chunks;
   }
 
-  /// Synthesizes text to an audio file (.mp3) saved at:
-  /// bộ nhớ trong/copecute/readio/*.mp3 (Android) or %USERPROFILE%/copecute/readio/*.mp3 (Windows)
+  /// Synthesizes text to an audio file (.mp3 or .wav) saved at:
+  /// bộ nhớ trong/copecute/readio/* (Android) or %USERPROFILE%/copecute/readio/* (Windows)
   /// Automatically splits long text into chunks, synthesizes each segment,
   /// and seamlessly merges them together to prevent timeouts and -8 buffer overflow errors.
   Future<String> synthesizeToFile(
@@ -517,7 +675,7 @@ class TtsService with ChangeNotifier {
     await applySettings();
     await _tts.awaitSynthCompletion(false);
 
-    // Determine target .mp3 file name
+    // Determine target file name — honor .mp3 / .wav from caller; default to .mp3
     String baseName = customFileName?.trim() ?? '';
     if (baseName.isEmpty) {
       if (targetTitle != null && targetTitle.trim().isNotEmpty) {
@@ -525,17 +683,19 @@ class TtsService with ChangeNotifier {
             .trim()
             .replaceAll(RegExp(r'[\\/:*?"<>|]'), '_')
             .replaceAll(RegExp(r'\s+'), '_');
-        if (!baseName.toLowerCase().endsWith('.mp3')) {
-          baseName = '$baseName.mp3';
-        }
       } else {
-        baseName = 'readio_${DateTime.now().millisecondsSinceEpoch}.mp3';
-      }
-    } else {
-      if (!baseName.toLowerCase().endsWith('.mp3')) {
-        baseName = '$baseName.mp3';
+        baseName = 'readio_${DateTime.now().millisecondsSinceEpoch}';
       }
     }
+
+    final lower = baseName.toLowerCase();
+    final bool wantsMp3 = lower.endsWith('.mp3') ||
+        (!lower.endsWith('.wav') && !lower.endsWith('.m4a') && !lower.endsWith('.aac'));
+    if (!lower.endsWith('.mp3') && !lower.endsWith('.wav') &&
+        !lower.endsWith('.m4a') && !lower.endsWith('.aac')) {
+      baseName = '$baseName.${wantsMp3 ? 'mp3' : 'wav'}';
+    }
+    final String outExt = baseName.split('.').last.toLowerCase();
 
     final chunks = splitTextIntoChunks(text, maxChunkLength: 550);
     if (chunks.isEmpty) {
@@ -637,11 +797,11 @@ class TtsService with ChangeNotifier {
 
     File fileToExport = mergedTempFile;
 
-    // Mix Background Music (BGM) if selected
+    // Mix Background Music (BGM) if selected — encode to final format when possible
     if (bgmTrack != null) {
       onProgress?.call(0.90, '');
       final String mixedTempPath =
-          '${tempDir.path}${Platform.pathSeparator}mixed_$timestamp.wav';
+          '${tempDir.path}${Platform.pathSeparator}mixed_$timestamp.$outExt';
       final File mixedTempFile = File(mixedTempPath);
 
       fileToExport = await AudioMixer.mixBgmIntoSpeech(
@@ -650,6 +810,15 @@ class TtsService with ChangeNotifier {
         bgmVolume: bgmVolume ?? 0.3,
         playMode: bgmPlayMode ?? BgmPlayMode.repeatAll,
         outputFile: mixedTempFile,
+      );
+    } else if (outExt == 'mp3' || outExt == 'm4a' || outExt == 'aac') {
+      // Convert raw WAV speech into the requested compressed format
+      onProgress?.call(0.90, '');
+      final String convertedPath =
+          '${tempDir.path}${Platform.pathSeparator}export_$timestamp.$outExt';
+      fileToExport = await AudioMixer.convertFormat(
+        inputFile: mergedTempFile,
+        outputFile: File(convertedPath),
       );
     }
 
@@ -666,6 +835,12 @@ class TtsService with ChangeNotifier {
         if (res is Map && res['path'] != null) {
           final String finalPath = res['path'].toString();
           debugPrint('Native export audio succeeded: $finalPath');
+          try {
+            if (fileToExport.path != mergedTempFile.path && fileToExport.existsSync()) {
+              fileToExport.deleteSync();
+            }
+            if (mergedTempFile.existsSync()) mergedTempFile.deleteSync();
+          } catch (_) {}
           onProgress?.call(1.0, 'Hoàn thành!');
           return finalPath;
         }
@@ -695,10 +870,10 @@ class TtsService with ChangeNotifier {
     final bytes = await fileToExport.readAsBytes();
     await targetFile.writeAsBytes(bytes, flush: true);
     try {
-      if (fileToExport.existsSync()) {
+      if (fileToExport.existsSync() && fileToExport.path != targetFullPath) {
         fileToExport.deleteSync();
       }
-      if (mergedTempFile.existsSync()) {
+      if (mergedTempFile.existsSync() && mergedTempFile.path != targetFullPath) {
         mergedTempFile.deleteSync();
       }
     } catch (_) {}

@@ -46,11 +46,9 @@ class _CreateViewState extends State<CreateView> {
   bool _isGenerating = false;
   bool _isPreviewingInputText = false;
   bool _isCustomFileName = false;
-  String _exportFormat = 'wav';
+  bool _configDirty = false;
+  String _exportFormat = 'mp3';
   String? _selectedCountryLocale;
-  String? _lastGeneratedPath;
-  String? _lastGeneratedTitle;
-  HistoryAudioItem? _lastGeneratedItem;
   StreamSubscription<TtsPlaybackState>? _ttsStateSub;
 
   String _generateDefaultFileName() {
@@ -86,9 +84,11 @@ class _CreateViewState extends State<CreateView> {
   void initState() {
     super.initState();
     _initVoiceSelection();
+    _loadExportFormat();
     _fileNameController.text = _generateDefaultFileName();
     _textController.addListener(_onTextChanged);
     widget.presetService.addListener(_onPresetChanged);
+    widget.ttsService.addListener(_onTtsChanged);
     _ttsStateSub = widget.ttsService.stateStream.listen((state) {
       if (state == TtsPlaybackState.stopped) {
         if (_isPreviewingInputText && mounted) {
@@ -107,7 +107,27 @@ class _CreateViewState extends State<CreateView> {
     });
   }
 
+  Future<void> _loadExportFormat() async {
+    final format = await TtsService.loadExportFormat();
+    if (!mounted) return;
+    setState(() {
+      _exportFormat = format;
+    });
+  }
+
+  Future<void> _setExportFormat(String format) async {
+    final normalized = format == 'wav' ? 'wav' : 'mp3';
+    setState(() {
+      _exportFormat = normalized;
+    });
+    await TtsService.saveExportFormat(normalized);
+  }
+
   void _onPresetChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _onTtsChanged() {
     if (mounted) setState(() {});
   }
 
@@ -122,6 +142,7 @@ class _CreateViewState extends State<CreateView> {
   void dispose() {
     _textController.removeListener(_onTextChanged);
     widget.presetService.removeListener(_onPresetChanged);
+    widget.ttsService.removeListener(_onTtsChanged);
     _ttsStateSub?.cancel();
     _textController.dispose();
     _fileNameController.dispose();
@@ -587,11 +608,6 @@ class _CreateViewState extends State<CreateView> {
 
       if (mounted) {
         dismissOverlay?.call();
-        setState(() {
-          _lastGeneratedPath = fullPath;
-          _lastGeneratedTitle = fileName;
-          _lastGeneratedItem = historyItem;
-        });
         _showSuccessSnackBar(historyItem);
       }
     } on GenerationCancelledException {
@@ -789,22 +805,11 @@ class _CreateViewState extends State<CreateView> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // 1. Textarea with Quick Actions Toolbar
                         _buildEditorCard(),
                         const SizedBox(height: 14),
-
-                        // 2. Reading Configuration / Preset Tile
                         _buildReadingConfigCard(),
                         const SizedBox(height: 14),
-
-                        // 3. Background Music Tile
                         _buildBgmCard(),
-
-                        // 4. Recently Generated Audio Card (if available)
-                        if (_lastGeneratedPath != null) ...[
-                          const SizedBox(height: 14),
-                          _buildRecentGeneratedCard(),
-                        ],
                       ],
                     ),
                   ),
@@ -1002,28 +1007,64 @@ class _CreateViewState extends State<CreateView> {
                   PopupMenuButton<String>(
                     initialValue: _exportFormat,
                     onSelected: (val) {
-                      setState(() {
-                        _exportFormat = val;
-                      });
+                      _setExportFormat(val);
                     },
                     itemBuilder: (ctx) => [
-                      const PopupMenuItem(
-                        value: 'wav',
-                        child: Row(
-                          children: [
-                            Icon(Icons.audiotrack_rounded, size: 18, color: Colors.blueAccent),
-                            SizedBox(width: 8),
-                            Text('.WAV (Chất lượng gốc)', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                      ),
-                      const PopupMenuItem(
+                      PopupMenuItem(
                         value: 'mp3',
                         child: Row(
                           children: [
-                            Icon(Icons.music_note_rounded, size: 18, color: Colors.purpleAccent),
-                            SizedBox(width: 8),
-                            Text('.MP3 (Nén gọn nhẹ)', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold)),
+                            Icon(
+                              Icons.music_note_rounded,
+                              size: 18,
+                              color: _exportFormat == 'mp3'
+                                  ? theme.colorScheme.primary
+                                  : Colors.deepOrangeAccent,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '.MP3 (Nén gọn nhẹ)',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.bold,
+                                color: _exportFormat == 'mp3'
+                                    ? theme.colorScheme.primary
+                                    : null,
+                              ),
+                            ),
+                            if (_exportFormat == 'mp3') ...[
+                              const SizedBox(width: 6),
+                              Icon(Icons.check_rounded, size: 16, color: theme.colorScheme.primary),
+                            ],
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'wav',
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.audiotrack_rounded,
+                              size: 18,
+                              color: _exportFormat == 'wav'
+                                  ? theme.colorScheme.primary
+                                  : Colors.blueAccent,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '.WAV (Chất lượng gốc)',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.bold,
+                                color: _exportFormat == 'wav'
+                                    ? theme.colorScheme.primary
+                                    : null,
+                              ),
+                            ),
+                            if (_exportFormat == 'wav') ...[
+                              const SizedBox(width: 6),
+                              Icon(Icons.check_rounded, size: 16, color: theme.colorScheme.primary),
+                            ],
                           ],
                         ),
                       ),
@@ -1097,71 +1138,193 @@ class _CreateViewState extends State<CreateView> {
 
   Future<void> _applyPreset(TtsPreset preset, [StateSetter? modalSetState]) async {
     await widget.presetService.setActivePreset(preset);
-    await widget.ttsService.setSpeechRate(preset.speechRate);
-    await widget.ttsService.setPitch(preset.pitch);
-    await widget.ttsService.setVolume(preset.volume);
-    if (preset.voiceKey != null) {
-      final found = widget.ttsService.allVoices.cast<TtsVoiceItem?>().firstWhere(
-            (v) => v?.uniqueKey == preset.voiceKey,
-            orElse: () => null,
-          );
-      if (found != null) {
-        await widget.ttsService.setVoice(found);
-      }
+    await widget.ttsService.applyPresetValues(
+      speechRate: preset.speechRate,
+      pitch: preset.pitch,
+      volume: preset.volume,
+      voiceKey: preset.voiceKey,
+      locale: preset.locale,
+      voiceName: preset.voiceName,
+    );
+    final appliedVoice = widget.ttsService.currentVoice;
+    if (appliedVoice != null) {
+      _selectedCountryLocale = appliedVoice.locale;
+    } else if (preset.locale != null && preset.locale!.isNotEmpty) {
+      _selectedCountryLocale = preset.locale;
     }
+    _configDirty = false;
     modalSetState?.call(() {});
     if (mounted) setState(() {});
   }
 
+  void _markConfigDirty([StateSetter? modalSetState]) {
+    final active = widget.presetService.activePreset;
+    final dirty = active == null ||
+        !active.matchesSettings(
+          speechRate: widget.ttsService.speechRate,
+          pitch: widget.ttsService.pitch,
+          volume: widget.ttsService.volume,
+          voiceKey: widget.ttsService.currentVoice?.uniqueKey,
+        );
+    if (_configDirty != dirty) {
+      _configDirty = dirty;
+      modalSetState?.call(() {});
+      if (mounted) setState(() {});
+    } else {
+      modalSetState?.call(() {});
+    }
+  }
+
+  /// Persist current live TTS settings into the active preset (or prompt for a new one).
+  Future<bool> _saveCurrentConfigAsPreset([StateSetter? modalSetState]) async {
+    final voice = widget.ttsService.currentVoice;
+    final active = widget.presetService.activePreset;
+
+    if (active != null) {
+      await widget.presetService.updatePresetSettings(
+        id: active.id,
+        voiceKey: voice?.uniqueKey,
+        voiceName: voice?.name,
+        locale: voice?.locale,
+        speechRate: widget.ttsService.speechRate,
+        pitch: widget.ttsService.pitch,
+        volume: widget.ttsService.volume,
+      );
+      _configDirty = false;
+      modalSetState?.call(() {});
+      if (mounted) {
+        setState(() {});
+        _showMessage(context.tr('preset_updated_success'));
+      }
+      return true;
+    }
+
+    await _showSavePresetDialog(modalSetState);
+    if (widget.presetService.activePreset != null) {
+      _configDirty = false;
+      return true;
+    }
+    return false;
+  }
+
   Future<void> _showSavePresetDialog([StateSetter? modalSetState]) async {
-    final textCtrl = TextEditingController();
-    final result = await showDialog<String>(
+    final active = widget.presetService.activePreset;
+    final canUpdate = active != null;
+    final textCtrl = TextEditingController(text: canUpdate ? active.name : '');
+
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(context.tr('preset_save_new')),
-        content: TextField(
-          controller: textCtrl,
-          autofocus: true,
-          decoration: InputDecoration(
-            hintText: context.tr('preset_name_hint'),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          ),
+        title: Text(ctx.tr(canUpdate ? 'preset_save_or_update' : 'preset_save_new')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              ctx.tr('preset_save_hint'),
+              style: TextStyle(fontSize: 13, color: Theme.of(ctx).hintColor),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: textCtrl,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: ctx.tr('preset_name_hint'),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text(context.tr('btn_cancel')),
+            child: Text(ctx.tr('btn_cancel')),
           ),
+          if (canUpdate)
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx, {'action': 'update'});
+              },
+              child: Text(ctx.tr('preset_update_current')),
+            ),
           FilledButton(
             onPressed: () {
               final name = textCtrl.text.trim();
               if (name.isNotEmpty) {
-                Navigator.pop(ctx, name);
+                Navigator.pop(ctx, {'action': 'new', 'name': name});
               }
             },
-            child: Text(context.tr('btn_save')),
+            child: Text(ctx.tr(canUpdate ? 'preset_save_as_new' : 'btn_save')),
           ),
         ],
       ),
     );
 
-    if (result != null && result.isNotEmpty) {
-      final newPreset = TtsPreset(
-        id: 'preset_${DateTime.now().millisecondsSinceEpoch}',
-        name: result,
-        voiceKey: widget.ttsService.currentVoice?.uniqueKey,
-        voiceName: widget.ttsService.currentVoice?.getFriendlyName(),
-        locale: widget.ttsService.currentVoice?.locale,
+    if (result == null) return;
+
+    if (result['action'] == 'update' && canUpdate) {
+      final voice = widget.ttsService.currentVoice;
+      await widget.presetService.updatePresetSettings(
+        id: active.id,
+        voiceKey: voice?.uniqueKey,
+        voiceName: voice?.name,
+        locale: voice?.locale,
         speechRate: widget.ttsService.speechRate,
         pitch: widget.ttsService.pitch,
         volume: widget.ttsService.volume,
-        isBuiltIn: false,
       );
-      await widget.presetService.savePreset(newPreset);
+      final newName = textCtrl.text.trim();
+      if (newName.isNotEmpty && newName != active.name) {
+        await widget.presetService.savePreset(
+          active.copyWith(
+            name: newName,
+            voiceKey: voice?.uniqueKey,
+            voiceName: voice?.name,
+            locale: voice?.locale,
+            speechRate: widget.ttsService.speechRate,
+            pitch: widget.ttsService.pitch,
+            volume: widget.ttsService.volume,
+          ),
+        );
+      }
       modalSetState?.call(() {});
       if (mounted) {
-        setState(() {});
+        setState(() {
+          _configDirty = false;
+        });
+        _showMessage(context.tr('preset_updated_success'));
+      }
+      return;
+    }
+
+    final name = (result['name'] as String?)?.trim() ?? '';
+    if (name.isNotEmpty) {
+      final voice = widget.ttsService.currentVoice;
+      final newPreset = TtsPreset(
+        id: 'preset_${DateTime.now().millisecondsSinceEpoch}',
+        name: name,
+        voiceKey: voice?.uniqueKey,
+        voiceName: voice?.name,
+        locale: voice?.locale,
+        speechRate: widget.ttsService.speechRate,
+        pitch: widget.ttsService.pitch,
+        volume: widget.ttsService.volume,
+      );
+      await widget.presetService.savePreset(newPreset);
+      await widget.ttsService.applyPresetValues(
+        speechRate: newPreset.speechRate,
+        pitch: newPreset.pitch,
+        volume: newPreset.volume,
+        voiceKey: newPreset.voiceKey,
+        locale: newPreset.locale,
+        voiceName: newPreset.voiceName,
+      );
+      modalSetState?.call(() {});
+      if (mounted) {
+        setState(() {
+          _configDirty = false;
+        });
         _showMessage(context.tr('preset_saved_success'));
       }
     }
@@ -1169,38 +1332,35 @@ class _CreateViewState extends State<CreateView> {
 
   Widget _buildReadingConfigCard() {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     final currentVoice = widget.ttsService.currentVoice;
     final activePreset = widget.presetService.activePreset;
-    final presetName = activePreset?.name ?? 'Tùy chỉnh';
-    final friendlyVoiceName = currentVoice?.getFriendlyName() ?? 'Giọng đọc mặc định';
+    final unsaved = _configDirty || activePreset == null;
+    final presetName = unsaved
+        ? context.tr('preset_custom')
+        : (activePreset.name);
+    final friendlyVoiceName =
+        currentVoice?.getFriendlyName() ?? context.tr('default_voice');
 
     return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: BorderSide(
-          color: theme.colorScheme.outlineVariant.withAlpha(isDark ? 60 : 90),
-        ),
-      ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         onTap: _openConfigurationModal,
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(10),
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF6366F1), Color(0xFF06B6D4)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
+                  color: theme.colorScheme.primary.withAlpha(28),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.tune_rounded, color: Colors.white, size: 22),
+                child: Icon(
+                  Icons.record_voice_over_rounded,
+                  color: theme.colorScheme.primary,
+                  size: 22,
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -1212,72 +1372,51 @@ class _CreateViewState extends State<CreateView> {
                         Text(
                           context.tr('reading_config_title'),
                           style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.5,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
                             color: theme.hintColor,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.primary.withAlpha(25),
-                            borderRadius: BorderRadius.circular(6),
+                        if (unsaved) ...[
+                          const SizedBox(width: 6),
+                          Icon(
+                            Icons.circle,
+                            size: 8,
+                            color: Colors.orange.shade700,
                           ),
-                          child: Text(
-                            presetName,
+                          const SizedBox(width: 4),
+                          Text(
+                            context.tr('preset_unsaved'),
                             style: TextStyle(
                               fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.orange.shade800,
                             ),
                           ),
-                        ),
+                        ],
                       ],
                     ),
-                    const SizedBox(height: 5),
+                    const SizedBox(height: 4),
                     Text(
                       friendlyVoiceName,
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 4),
                     Text(
-                      '⚡ Tốc độ: ${(widget.ttsService.speechRate / 0.5).toStringAsFixed(1)}x  •  🎚️ Cao độ: ${widget.ttsService.pitch.toStringAsFixed(1)}x',
-                      style: TextStyle(fontSize: 11.5, color: theme.hintColor),
+                      '$presetName  ·  ${(widget.ttsService.speechRate / 0.5).toStringAsFixed(1)}x  ·  ${widget.ttsService.pitch.toStringAsFixed(1)}',
+                      style: TextStyle(fontSize: 12, color: theme.hintColor),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withAlpha(18),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Cấu hình',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: theme.colorScheme.primary,
-                      ),
-                    ),
-                    const SizedBox(width: 3),
-                    Icon(
-                      Icons.arrow_forward_ios_rounded,
-                      size: 11,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ],
-                ),
-              ),
+              Icon(Icons.chevron_right_rounded, color: theme.hintColor),
             ],
           ),
         ),
@@ -1287,7 +1426,6 @@ class _CreateViewState extends State<CreateView> {
 
   Widget _buildBgmCard() {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
     return ListenableBuilder(
       listenable: widget.bgmService,
@@ -1313,15 +1451,8 @@ class _CreateViewState extends State<CreateView> {
         }
 
         return Card(
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-            side: BorderSide(
-              color: theme.colorScheme.outlineVariant.withAlpha(isDark ? 60 : 90),
-            ),
-          ),
           child: InkWell(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(20),
             onTap: () {
               BgmManagerSheet.show(context, widget.bgmService);
             },
@@ -1330,79 +1461,57 @@ class _CreateViewState extends State<CreateView> {
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(10),
+                    width: 44,
+                    height: 44,
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: isEnabled
-                            ? [const Color(0xFF8B5CF6), const Color(0xFFEC4899)]
-                            : [Colors.grey.shade600, Colors.grey.shade400],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
+                      color: (isEnabled ? Colors.purple : theme.hintColor)
+                          .withAlpha(28),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(Icons.music_note_rounded, color: Colors.white, size: 22),
+                    child: Icon(
+                      Icons.music_note_rounded,
+                      color: isEnabled ? Colors.purple : theme.hintColor,
+                      size: 22,
+                    ),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Text(
-                              context.tr('bgm_title'),
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0.5,
-                                color: theme.hintColor,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: isEnabled
-                                    ? Colors.purple.withAlpha(25)
-                                    : theme.hintColor.withAlpha(25),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                isEnabled ? context.tr('bgm_enabled') : context.tr('bgm_disabled'),
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                  color: isEnabled ? Colors.purple : theme.hintColor,
-                                ),
-                              ),
-                            ),
-                          ],
+                        Text(
+                          context.tr('bgm_title'),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: theme.hintColor,
+                          ),
                         ),
-                        const SizedBox(height: 5),
+                        const SizedBox(height: 4),
                         Text(
                           isEnabled
-                              ? (currentTrack?.name ?? context.tr('bgm_choose_track'))
+                              ? (currentTrack?.name ??
+                                  context.tr('bgm_choose_track'))
                               : context.tr('bgm_off_description'),
                           style: TextStyle(
                             fontWeight: FontWeight.w700,
-                            fontSize: 14.5,
+                            fontSize: 15,
                             color: isEnabled ? null : theme.hintColor,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                         if (isEnabled) ...[
-                          const SizedBox(height: 3),
+                          const SizedBox(height: 4),
                           Text(
-                            '🔊 ${context.tr('bgm_volume')}: $volPercent%  •  🔂 $modeLabel',
-                            style: TextStyle(fontSize: 11.5, color: theme.hintColor),
+                            '${context.tr('bgm_volume')}: $volPercent%  ·  $modeLabel',
+                            style: TextStyle(
+                                fontSize: 12, color: theme.hintColor),
                           ),
                         ],
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
                   Switch.adaptive(
                     value: isEnabled,
                     onChanged: (val) {
@@ -1418,6 +1527,25 @@ class _CreateViewState extends State<CreateView> {
     );
   }
 
+  Widget _configSectionHeader(String title, IconData icon, {Widget? trailing}) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 8, top: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+            ),
+          ),
+          if (trailing != null) trailing,
+        ],
+      ),
+    );
+  }
+
   void _openConfigurationModal() {
     showModalBottomSheet(
       context: context,
@@ -1428,66 +1556,92 @@ class _CreateViewState extends State<CreateView> {
           builder: (ctx, setModalState) {
             final theme = Theme.of(ctx);
             return AnimatedBuilder(
-              animation: Listenable.merge([widget.ttsService, widget.presetService]),
+              animation: Listenable.merge(
+                  [widget.ttsService, widget.presetService]),
               builder: (animCtx, _) {
                 final currentVoice = widget.ttsService.currentVoice;
                 final allVoices = widget.ttsService.allVoices;
-                final locales = allVoices.map((v) => v.locale).toSet().toList()..sort();
+                final locales =
+                    allVoices.map((v) => v.locale).toSet().toList()..sort();
                 if (_selectedCountryLocale == null && locales.isNotEmpty) {
-                  _selectedCountryLocale = locales.first;
+                  _selectedCountryLocale =
+                      currentVoice?.locale ?? locales.first;
+                }
+                if (currentVoice != null &&
+                    locales.contains(currentVoice.locale) &&
+                    _selectedCountryLocale != currentVoice.locale) {
+                  _selectedCountryLocale = currentVoice.locale;
                 }
                 final filteredVoices = allVoices
                     .where((v) => v.locale == _selectedCountryLocale)
                     .toList();
-                final displayNames = TtsService.getVoiceDisplayNames(filteredVoices);
+                final displayNames =
+                    TtsService.getVoiceDisplayNames(filteredVoices);
 
                 final rate = widget.ttsService.speechRate;
                 final pitch = widget.ttsService.pitch;
                 final volume = widget.ttsService.volume;
                 final isPreviewing = widget.ttsService.isPreviewing;
+                final bottomPad = MediaQuery.of(ctx).padding.bottom;
+                final unsaved = _configDirty ||
+                    widget.presetService.activePreset == null;
 
                 return Container(
-                  height: MediaQuery.of(ctx).size.height * 0.85,
+                  height: MediaQuery.of(ctx).size.height * 0.88,
                   decoration: BoxDecoration(
                     color: theme.scaffoldBackgroundColor,
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                    borderRadius:
+                        const BorderRadius.vertical(top: Radius.circular(28)),
                   ),
                   child: Column(
                     children: [
-                      // Handle bar & Header
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 12, 16, 8),
+                        padding: const EdgeInsets.fromLTRB(20, 10, 12, 4),
                         child: Column(
                           children: [
-                            Center(
-                              child: Container(
-                                width: 44,
-                                height: 4,
-                                decoration: BoxDecoration(
-                                  color: theme.hintColor.withAlpha(60),
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
+                            Container(
+                              width: 40,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: theme.hintColor.withAlpha(55),
+                                borderRadius: BorderRadius.circular(2),
                               ),
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 14),
                             Row(
                               children: [
-                                Container(
-                                  padding: const EdgeInsets.all(7),
-                                  decoration: BoxDecoration(
-                                    color: theme.colorScheme.primary.withAlpha(25),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Icon(Icons.tune_rounded, color: theme.colorScheme.primary, size: 20),
-                                ),
-                                const SizedBox(width: 10),
                                 Expanded(
-                                  child: Text(
-                                    ctx.tr('reading_config_title'),
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
+                                  child: Row(
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          ctx.tr('reading_config_title'),
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 18,
+                                          ),
+                                        ),
+                                      ),
+                                      if (unsaved) ...[
+                                        const SizedBox(width: 8),
+                                        Icon(Icons.circle,
+                                            size: 8,
+                                            color: Colors.orange.shade700),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          ctx.tr('preset_unsaved'),
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                            color: Colors.orange.shade800,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
                                   ),
                                 ),
                                 IconButton(
+                                  visualDensity: VisualDensity.compact,
                                   icon: const Icon(Icons.close_rounded),
                                   onPressed: () => Navigator.pop(modalCtx),
                                 ),
@@ -1496,476 +1650,459 @@ class _CreateViewState extends State<CreateView> {
                           ],
                         ),
                       ),
-                      const Divider(height: 1),
-
-                      // Scrollable Content
                       Expanded(
                         child: ListView(
-                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                           children: [
-                            // --- PRESET SECTION ---
-                            Row(
-                              children: [
-                                Text(
-                                  ctx.tr('preset_label'),
-                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                            // ---- PRESETS ----
+                            _configSectionHeader(
+                              ctx.tr('preset_label'),
+                              Icons.bookmark_rounded,
+                              trailing: TextButton.icon(
+                                onPressed: () =>
+                                    _showSavePresetDialog(setModalState),
+                                icon: const Icon(Icons.bookmark_add_outlined,
+                                    size: 16),
+                                label: Text(
+                                  ctx.tr('save_preset'),
+                                  style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700),
                                 ),
-                                const Spacer(),
-                                TextButton.icon(
-                                  onPressed: () {
-                                    _showSavePresetDialog(setModalState);
-                                  },
-                                  icon: const Icon(Icons.bookmark_add_outlined, size: 17),
-                                  label: Text(
-                                    ctx.tr('save_preset'),
-                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                                  ),
-                                  style: TextButton.styleFrom(
-                                    visualDensity: VisualDensity.compact,
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                  ),
+                                style: TextButton.styleFrom(
+                                  visualDensity: VisualDensity.compact,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8),
                                 ),
-                              ],
+                              ),
                             ),
-                            const SizedBox(height: 8),
-                            // Preset Pills
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: widget.presetService.presets.map((preset) {
-                                final isSelected = widget.presetService.activePresetId == preset.id;
-                                return InputChip(
-                                  label: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        isSelected ? Icons.check_circle_rounded : Icons.label_outline_rounded,
-                                        size: 14,
-                                        color: isSelected ? Colors.white : theme.colorScheme.primary,
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        preset.name,
+                            Card(
+                              child: Padding(
+                                padding: const EdgeInsets.all(14),
+                                child: widget.presetService.presets.isEmpty
+                                    ? Text(
+                                        ctx.tr('preset_empty_hint'),
                                         style: TextStyle(
-                                          fontSize: 12.5,
-                                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                                          color: isSelected ? Colors.white : null,
+                                          fontSize: 13,
+                                          color: theme.hintColor,
                                         ),
+                                      )
+                                    : Wrap(
+                                        spacing: 8,
+                                        runSpacing: 8,
+                                        children: widget.presetService.presets
+                                            .map((preset) {
+                                          final selected = widget.presetService
+                                                      .activePresetId ==
+                                                  preset.id &&
+                                              !_configDirty;
+                                          return InputChip(
+                                            selected: selected,
+                                            avatar: Icon(
+                                              selected
+                                                  ? Icons.check_circle_rounded
+                                                  : Icons.tune_rounded,
+                                              size: 16,
+                                              color: selected
+                                                  ? Colors.white
+                                                  : theme.colorScheme.primary,
+                                            ),
+                                            label: Text(preset.name),
+                                            labelStyle: TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 12.5,
+                                              color: selected
+                                                  ? Colors.white
+                                                  : null,
+                                            ),
+                                            selectedColor:
+                                                theme.colorScheme.primary,
+                                            backgroundColor: theme.colorScheme
+                                                .surfaceContainerHighest
+                                                .withAlpha(90),
+                                            side: BorderSide.none,
+                                            onSelected: (_) => _applyPreset(
+                                                preset, setModalState),
+                                            onDeleted: () async {
+                                              final ok =
+                                                  await showDialog<bool>(
+                                                context: ctx,
+                                                builder: (dCtx) => AlertDialog(
+                                                  shape:
+                                                      RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            16),
+                                                  ),
+                                                  title: Text(dCtx.tr(
+                                                      'preset_delete_title')),
+                                                  content: Text(dCtx
+                                                      .tr(
+                                                          'preset_delete_confirm')
+                                                      .replaceAll('{name}',
+                                                          preset.name)),
+                                                  actions: [
+                                                    TextButton(
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                              dCtx, false),
+                                                      child: Text(dCtx
+                                                          .tr('btn_cancel')),
+                                                    ),
+                                                    FilledButton(
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                              dCtx, true),
+                                                      child: Text(dCtx
+                                                          .tr('btn_delete')),
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+                                              if (ok == true) {
+                                                await widget.presetService
+                                                    .deletePreset(preset.id);
+                                                final next = widget
+                                                    .presetService.activePreset;
+                                                if (next != null) {
+                                                  await _applyPreset(
+                                                      next, setModalState);
+                                                } else {
+                                                  _configDirty = true;
+                                                  setModalState(() {});
+                                                  if (mounted) setState(() {});
+                                                }
+                                              }
+                                            },
+                                            deleteIconColor: selected
+                                                ? Colors.white70
+                                                : theme.hintColor,
+                                          );
+                                        }).toList(),
                                       ),
-                                    ],
-                                  ),
-                                  selected: isSelected,
-                                  selectedColor: theme.colorScheme.primary,
-                                  backgroundColor: theme.colorScheme.surfaceContainerHighest.withAlpha(80),
-                                  onSelected: (_) {
-                                    _applyPreset(preset, setModalState);
-                                  },
-                                  onDeleted: preset.isBuiltIn
-                                      ? null
-                                      : () async {
-                                          await widget.presetService.deletePreset(preset.id);
-                                          setModalState(() {});
-                                          if (mounted) setState(() {});
-                                        },
-                                  deleteIconColor: isSelected ? Colors.white70 : theme.hintColor,
-                                );
-                              }).toList(),
+                              ),
                             ),
 
-                            const SizedBox(height: 20),
+                            const SizedBox(height: 16),
 
-                            // --- VOICE SECTION ---
-                            Row(
-                              children: [
-                                Text(
-                                  ctx.tr('choose_voice'),
-                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                                ),
-                                const Spacer(),
-                                // Country locale dropdown
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: theme.colorScheme.surfaceContainerHighest.withAlpha(80),
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(color: theme.dividerColor.withAlpha(40)),
-                                  ),
-                                  child: DropdownButtonHideUnderline(
-                                    child: DropdownButton<String>(
-                                      value: _selectedCountryLocale,
-                                      isDense: true,
-                                      icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
-                                      items: locales.map((loc) {
-                                        final flag = TtsService.countryFlagFromLocale(loc);
-                                        final name = TtsService.countryNameFromLocale(loc);
-                                        return DropdownMenuItem<String>(
-                                          value: loc,
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Text(flag, style: const TextStyle(fontSize: 15)),
-                                              const SizedBox(width: 6),
-                                              Text(
-                                                '$name ($loc)',
-                                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                      }).toList(),
-                                      onChanged: (newVal) {
-                                        if (newVal != null) {
+                            // ---- VOICE ----
+                            _configSectionHeader(
+                              ctx.tr('choose_voice'),
+                              Icons.record_voice_over_rounded,
+                              trailing: locales.isEmpty
+                                  ? null
+                                  : DropdownButtonHideUnderline(
+                                      child: DropdownButton<String>(
+                                        value: locales.contains(
+                                                _selectedCountryLocale)
+                                            ? _selectedCountryLocale
+                                            : locales.first,
+                                        isDense: true,
+                                        borderRadius: BorderRadius.circular(12),
+                                        items: locales.map((loc) {
+                                          return DropdownMenuItem(
+                                            value: loc,
+                                            child: Text(
+                                              '${TtsService.countryFlagFromLocale(loc)} ${TtsService.countryNameFromLocale(loc)}',
+                                              style: const TextStyle(
+                                                  fontSize: 12.5),
+                                            ),
+                                          );
+                                        }).toList(),
+                                        onChanged: (val) {
+                                          if (val == null) return;
                                           setState(() {
-                                            _selectedCountryLocale = newVal;
+                                            _selectedCountryLocale = val;
                                           });
                                           setModalState(() {});
-                                        }
-                                      },
+                                        },
+                                      ),
                                     ),
-                                  ),
-                                ),
-                              ],
                             ),
-                            const SizedBox(height: 8),
-
-                            // Voice preview card
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.surfaceContainerHighest.withAlpha(60),
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: theme.dividerColor.withAlpha(50)),
-                              ),
-                              child: Row(
-                                children: [
-                                  CircleAvatar(
-                                    radius: 20,
-                                    backgroundColor: Colors.amber.withAlpha(35),
-                                    child: const Icon(Icons.record_voice_over_rounded, color: Colors.amber, size: 20),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          currentVoice != null
-                                              ? (displayNames[currentVoice.uniqueKey] ?? currentVoice.getFriendlyName())
-                                              : ctx.tr('default_voice'),
-                                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        const SizedBox(height: 3),
-                                        Row(
-                                          children: [
-                                            if (currentVoice?.genderLabel != null) ...[
-                                              Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                                                decoration: BoxDecoration(
-                                                  color: (currentVoice!.genderLabel == 'Nữ' ? Colors.pinkAccent : Colors.blueAccent).withAlpha(25),
-                                                  borderRadius: BorderRadius.circular(5),
-                                                ),
-                                                child: Text(
-                                                  currentVoice.genderLabel!,
-                                                  style: TextStyle(
-                                                    fontSize: 9.5,
-                                                    fontWeight: FontWeight.w700,
-                                                    color: currentVoice.genderLabel == 'Nữ' ? Colors.pinkAccent : Colors.blueAccent,
-                                                  ),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 5),
-                                            ],
-                                            Text(
-                                              currentVoice?.locale ?? 'vi-VN',
-                                              style: TextStyle(fontSize: 11, color: theme.hintColor),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  // Audition voice button
-                                  IconButton.filledTonal(
-                                    icon: Icon(
-                                      isPreviewing ? Icons.stop_rounded : Icons.play_arrow_rounded,
-                                      size: 20,
-                                      color: isPreviewing ? Colors.redAccent : null,
-                                    ),
-                                    onPressed: () {
-                                      if (isPreviewing) {
-                                        widget.ttsService.stopPreview();
-                                      } else if (currentVoice != null) {
-                                        widget.ttsService.previewVoice(currentVoice);
-                                      }
-                                      setModalState(() {});
-                                      setState(() {});
-                                    },
-                                  ),
-                                  const SizedBox(width: 4),
-                                  // Open full list button
-                                  OutlinedButton(
-                                    onPressed: () {
-                                      _openVoiceAuditionSheet(filteredVoices, displayNames);
-                                    },
-                                    style: OutlinedButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                      visualDensity: VisualDensity.compact,
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                    ),
-                                    child: Text(
-                                      ctx.tr('choose_voice_sheet_title'),
-                                      style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-
-                            const SizedBox(height: 20),
-
-
-                            const SizedBox(height: 20),
-
-                            // --- BGM SECTION (NHẠC NỀN) ---
-                            Row(
-                              children: [
-                                const Icon(Icons.music_note_rounded, color: Colors.purpleAccent, size: 20),
-                                const SizedBox(width: 8),
-                                Text(
-                                  ctx.tr('bgm_section_title'),
-                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                                ),
-                                const Spacer(),
-                                Switch.adaptive(
-                                  value: widget.bgmService.isEnabled,
-                                  onChanged: (val) {
-                                    widget.bgmService.setEnabled(val);
-                                    setModalState(() {});
-                                    setState(() {});
-                                  },
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-
-                            if (widget.bgmService.isEnabled) ...[
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: theme.colorScheme.surfaceContainerHighest.withAlpha(60),
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(color: theme.dividerColor.withAlpha(50)),
-                                ),
-                                child: Column(
+                            Card(
+                              child: Padding(
+                                padding: const EdgeInsets.all(14),
+                                child: Row(
                                   children: [
-                                    Row(
-                                      children: [
-                                        CircleAvatar(
-                                          radius: 18,
-                                          backgroundColor: Colors.purple.withAlpha(30),
-                                          child: const Icon(Icons.audiotrack_rounded, color: Colors.purpleAccent, size: 18),
-                                        ),
-                                        const SizedBox(width: 10),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                widget.bgmService.currentTrack?.name ?? 'Chưa chọn nhạc',
-                                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                'Âm lượng: ${(widget.bgmService.volume * 100).toInt()}%',
-                                                style: TextStyle(fontSize: 11, color: theme.hintColor),
-                                              ),
-                                            ],
+                                    CircleAvatar(
+                                      radius: 22,
+                                      backgroundColor: theme
+                                          .colorScheme.primary
+                                          .withAlpha(28),
+                                      child: Icon(
+                                        Icons.record_voice_over_rounded,
+                                        color: theme.colorScheme.primary,
+                                        size: 22,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            currentVoice != null
+                                                ? (displayNames[currentVoice
+                                                        .uniqueKey] ??
+                                                    currentVoice
+                                                        .getFriendlyName())
+                                                : ctx.tr('default_voice'),
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 14.5,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
                                           ),
-                                        ),
-                                        OutlinedButton(
-                                          onPressed: () {
-                                            BgmManagerSheet.show(context, widget.bgmService);
-                                          },
-                                          style: OutlinedButton.styleFrom(
-                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                            visualDensity: VisualDensity.compact,
-                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                          const SizedBox(height: 3),
+                                          Text(
+                                            currentVoice?.locale ?? '—',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: theme.hintColor,
+                                            ),
                                           ),
-                                          child: Text(
-                                            ctx.tr('bgm_manager_title'),
-                                            style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold),
-                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    IconButton.filledTonal(
+                                      onPressed: () {
+                                        if (isPreviewing) {
+                                          widget.ttsService.stopPreview();
+                                        } else if (currentVoice != null) {
+                                          widget.ttsService
+                                              .previewVoice(currentVoice);
+                                        }
+                                        setModalState(() {});
+                                      },
+                                      icon: Icon(
+                                        isPreviewing
+                                            ? Icons.stop_rounded
+                                            : Icons.play_arrow_rounded,
+                                        color: isPreviewing
+                                            ? Colors.redAccent
+                                            : null,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    FilledButton.tonal(
+                                      onPressed: () {
+                                        _openVoiceAuditionSheet(
+                                            filteredVoices, displayNames);
+                                      },
+                                      style: FilledButton.styleFrom(
+                                        visualDensity: VisualDensity.compact,
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 12, vertical: 10),
+                                      ),
+                                      child: Text(
+                                        ctx.tr('change_voice'),
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
                                         ),
-                                      ],
+                                      ),
                                     ),
                                   ],
                                 ),
                               ),
-                            ],
+                            ),
 
-                            // --- AUDIO PARAMS ---
-                            Text(
+                            const SizedBox(height: 16),
+
+                            // ---- AUDIO PARAMS ----
+                            _configSectionHeader(
                               ctx.tr('audio_params_title'),
-                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                              Icons.tune_rounded,
                             ),
-                            const SizedBox(height: 12),
-
-                            // Speech rate
-                            Row(
-                              children: [
-                                const Icon(Icons.speed_rounded, size: 18),
-                                const SizedBox(width: 6),
-                                Text(
-                                  ctx.tr('speech_rate'),
-                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                                ),
-                                const Spacer(),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: theme.colorScheme.primary.withAlpha(20),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    '${(rate / 0.5).toStringAsFixed(1)}x',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      color: theme.colorScheme.primary,
-                                      fontSize: 12,
+                            Card(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                    14, 14, 14, 10),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    _paramHeader(
+                                      theme,
+                                      Icons.speed_rounded,
+                                      ctx.tr('speech_rate'),
+                                      '${(rate / 0.5).toStringAsFixed(1)}x',
                                     ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Slider(
-                              value: rate.clamp(0.25, 0.75),
-                              min: 0.25,
-                              max: 0.75,
-                              onChanged: (val) {
-                                widget.ttsService.setSpeechRate(val);
-                              },
-                            ),
-                            Wrap(
-                              spacing: 6,
-                              children: [
-                                _buildModalQuickChip(ctx.tr('preset_slow'), 0.42, rate, (v) {
-                                  widget.ttsService.setSpeechRate(v);
-                                }),
-                                _buildModalQuickChip(ctx.tr('preset_normal'), 0.50, rate, (v) {
-                                  widget.ttsService.setSpeechRate(v);
-                                }),
-                                _buildModalQuickChip(ctx.tr('preset_fast'), 0.58, rate, (v) {
-                                  widget.ttsService.setSpeechRate(v);
-                                }),
-                              ],
-                            ),
-
-                            const SizedBox(height: 16),
-
-                            // Pitch
-                            Row(
-                              children: [
-                                const Icon(Icons.graphic_eq_rounded, size: 18),
-                                const SizedBox(width: 6),
-                                Text(
-                                  ctx.tr('pitch'),
-                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                                ),
-                                const Spacer(),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: theme.colorScheme.primary.withAlpha(20),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    '${pitch.toStringAsFixed(1)}x',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      color: theme.colorScheme.primary,
-                                      fontSize: 12,
+                                    Slider(
+                                      value: rate.clamp(0.25, 0.75),
+                                      min: 0.25,
+                                      max: 0.75,
+                                      divisions: 20,
+                                      label:
+                                          '${(rate / 0.5).toStringAsFixed(1)}x',
+                                      onChanged: (val) {
+                                        widget.ttsService.setSpeechRate(val,
+                                            persist: false);
+                                      },
+                                      onChangeEnd: (val) async {
+                                        await widget.ttsService
+                                            .setSpeechRate(val);
+                                        _markConfigDirty(setModalState);
+                                      },
                                     ),
-                                  ),
+                                    Wrap(
+                                      spacing: 6,
+                                      children: [
+                                        _buildModalQuickChip(
+                                            ctx.tr('preset_slow'), 0.42, rate,
+                                            (v) async {
+                                          await widget.ttsService
+                                              .setSpeechRate(v);
+                                          _markConfigDirty(setModalState);
+                                        }),
+                                        _buildModalQuickChip(
+                                            ctx.tr('preset_normal'),
+                                            0.50,
+                                            rate, (v) async {
+                                          await widget.ttsService
+                                              .setSpeechRate(v);
+                                          _markConfigDirty(setModalState);
+                                        }),
+                                        _buildModalQuickChip(
+                                            ctx.tr('preset_fast'), 0.58, rate,
+                                            (v) async {
+                                          await widget.ttsService
+                                              .setSpeechRate(v);
+                                          _markConfigDirty(setModalState);
+                                        }),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 14),
+                                    _paramHeader(
+                                      theme,
+                                      Icons.graphic_eq_rounded,
+                                      ctx.tr('pitch'),
+                                      '${pitch.toStringAsFixed(1)}x',
+                                    ),
+                                    Slider(
+                                      value: pitch,
+                                      min: 0.5,
+                                      max: 2.0,
+                                      divisions: 30,
+                                      label: '${pitch.toStringAsFixed(1)}x',
+                                      onChanged: (val) {
+                                        widget.ttsService
+                                            .setPitch(val, persist: false);
+                                      },
+                                      onChangeEnd: (val) async {
+                                        await widget.ttsService.setPitch(val);
+                                        _markConfigDirty(setModalState);
+                                      },
+                                    ),
+                                    Wrap(
+                                      spacing: 6,
+                                      children: [
+                                        _buildModalQuickChip(
+                                            ctx.tr('preset_deep'), 0.8, pitch,
+                                            (v) async {
+                                          await widget.ttsService.setPitch(v);
+                                          _markConfigDirty(setModalState);
+                                        }),
+                                        _buildModalQuickChip(
+                                            ctx.tr('preset_normal'),
+                                            1.0,
+                                            pitch, (v) async {
+                                          await widget.ttsService.setPitch(v);
+                                          _markConfigDirty(setModalState);
+                                        }),
+                                        _buildModalQuickChip(
+                                            ctx.tr('preset_high'), 1.3, pitch,
+                                            (v) async {
+                                          await widget.ttsService.setPitch(v);
+                                          _markConfigDirty(setModalState);
+                                        }),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 14),
+                                    _paramHeader(
+                                      theme,
+                                      Icons.volume_up_rounded,
+                                      ctx.tr('volume'),
+                                      '${(volume * 100).toInt()}%',
+                                    ),
+                                    Slider(
+                                      value: volume,
+                                      min: 0.0,
+                                      max: 1.0,
+                                      divisions: 20,
+                                      label: '${(volume * 100).toInt()}%',
+                                      onChanged: (val) {
+                                        widget.ttsService
+                                            .setVolume(val, persist: false);
+                                      },
+                                      onChangeEnd: (val) async {
+                                        await widget.ttsService.setVolume(val);
+                                        _markConfigDirty(setModalState);
+                                      },
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                            Slider(
-                              value: pitch,
-                              min: 0.5,
-                              max: 2.0,
-                              onChanged: (val) {
-                                widget.ttsService.setPitch(val);
-                              },
-                            ),
-                            Wrap(
-                              spacing: 6,
-                              children: [
-                                _buildModalQuickChip(ctx.tr('preset_deep'), 0.8, pitch, (v) {
-                                  widget.ttsService.setPitch(v);
-                                }),
-                                _buildModalQuickChip(ctx.tr('preset_normal'), 1.0, pitch, (v) {
-                                  widget.ttsService.setPitch(v);
-                                }),
-                                _buildModalQuickChip(ctx.tr('preset_high'), 1.3, pitch, (v) {
-                                  widget.ttsService.setPitch(v);
-                                }),
-                              ],
-                            ),
-
-                            const SizedBox(height: 16),
-
-                            // Volume
-                            Row(
-                              children: [
-                                const Icon(Icons.volume_up_rounded, size: 18),
-                                const SizedBox(width: 6),
-                                Text(
-                                  ctx.tr('volume'),
-                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                                ),
-                                const Spacer(),
-                                Text(
-                                  '${(volume * 100).toInt()}%',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                    color: theme.colorScheme.primary,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Slider(
-                              value: volume,
-                              min: 0.0,
-                              max: 1.0,
-                              onChanged: (val) {
-                                widget.ttsService.setVolume(val);
-                              },
+                              ),
                             ),
                           ],
                         ),
                       ),
-
-                      // Apply / Done Button
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-                        child: SizedBox(
-                          width: double.infinity,
-                          child: FilledButton(
-                            onPressed: () => Navigator.pop(modalCtx),
-                            style: FilledButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        padding:
+                            EdgeInsets.fromLTRB(16, 8, 16, 12 + bottomPad),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => Navigator.pop(modalCtx),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                ),
+                                child: Text(
+                                  unsaved
+                                      ? ctx.tr('config_continue_custom')
+                                      : ctx.tr('config_done'),
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
                             ),
-                            child: Text(
-                              ctx.tr('apply_config'),
-                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: FilledButton.icon(
+                                onPressed: () async {
+                                  final saved = await _saveCurrentConfigAsPreset(
+                                      setModalState);
+                                  if (saved && modalCtx.mounted) {
+                                    Navigator.pop(modalCtx);
+                                  }
+                                },
+                                icon: const Icon(Icons.save_rounded, size: 18),
+                                label: Text(
+                                  ctx.tr('config_save'),
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                style: FilledButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
+                          ],
                         ),
                       ),
                     ],
@@ -1976,6 +2113,36 @@ class _CreateViewState extends State<CreateView> {
           },
         );
       },
+    );
+  }
+
+  Widget _paramHeader(
+      ThemeData theme, IconData icon, String title, String value) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: theme.colorScheme.primary),
+        const SizedBox(width: 6),
+        Text(
+          title,
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+        ),
+        const Spacer(),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primary.withAlpha(18),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Text(
+            value,
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              color: theme.colorScheme.primary,
+              fontSize: 12,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -2206,8 +2373,11 @@ class _CreateViewState extends State<CreateView> {
                                             ),
                                         ],
                                       ),
-                                      onTap: () {
-                                        widget.ttsService.setVoice(v);
+                                      onTap: () async {
+                                        await widget.ttsService.setVoice(v);
+                                        _selectedCountryLocale = v.locale;
+                                        _markConfigDirty();
+                                        if (!context.mounted) return;
                                         setState(() {});
                                         Navigator.pop(ctx);
                                       },
@@ -2231,7 +2401,7 @@ class _CreateViewState extends State<CreateView> {
     String label,
     double value,
     double currentValue,
-    ValueChanged<double> onSelect,
+    Future<void> Function(double) onSelect,
   ) {
     final isSelected = (currentValue - value).abs() < 0.05;
     final theme = Theme.of(context);
@@ -2244,62 +2414,4 @@ class _CreateViewState extends State<CreateView> {
     );
   }
 
-  void _playGeneratedAndOpenHistory() {
-    if (_lastGeneratedItem != null) {
-      widget.audioPlayerService.playItem(_lastGeneratedItem!);
-    } else if (_lastGeneratedPath != null) {
-      final found = widget.historyService.items.cast<HistoryAudioItem?>().firstWhere(
-            (item) => item?.filePath == _lastGeneratedPath,
-            orElse: () => null,
-          );
-      if (found != null) {
-        widget.audioPlayerService.playItem(found);
-      } else {
-        final fallbackItem = HistoryAudioItem(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          title: _lastGeneratedTitle ?? 'Audio.wav',
-          text: _textController.text.trim(),
-          filePath: _lastGeneratedPath!,
-          createdAt: DateTime.now(),
-          fileSizeBytes: File(_lastGeneratedPath!).existsSync()
-              ? File(_lastGeneratedPath!).lengthSync()
-              : 0,
-          voiceName: widget.ttsService.currentVoice?.getFriendlyName() ?? 'System Voice',
-          locale: widget.ttsService.currentVoice?.locale ?? 'vi-VN',
-          pitch: widget.ttsService.pitch,
-          rate: widget.ttsService.speechRate,
-        );
-        widget.audioPlayerService.playItem(fallbackItem);
-      }
-    }
-    widget.onGoToHistory();
-  }
-
-  Widget _buildRecentGeneratedCard() {
-    final theme = Theme.of(context);
-    return Card(
-      color: theme.colorScheme.primary.withAlpha(20),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: theme.colorScheme.primary,
-          child: const Icon(Icons.check, color: Colors.white),
-        ),
-        title: Text(
-          _lastGeneratedTitle ?? 'Audio.wav',
-          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: Text(
-          context.tr('generate_success'),
-          style: TextStyle(fontSize: 12, color: theme.hintColor),
-        ),
-        onTap: _playGeneratedAndOpenHistory,
-        trailing: IconButton.filledTonal(
-          icon: const Icon(Icons.play_arrow_rounded),
-          onPressed: _playGeneratedAndOpenHistory,
-        ),
-      ),
-    );
-  }
 }

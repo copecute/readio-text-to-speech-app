@@ -29,6 +29,23 @@ void main() async {
   final presetService = PresetService();
   await presetService.init();
 
+  // Live TTS params are restored from SharedPreferences inside TtsService.initialize().
+  // Only seed from the active preset on first launch (no saved rate yet), so
+  // cold-start never wipes a saved preset's tweaked values.
+  final prefsForTts = await SharedPreferences.getInstance();
+  final hasPersistedTts = prefsForTts.containsKey('readio_tts_speech_rate');
+  final active = presetService.activePreset;
+  if (!hasPersistedTts && active != null) {
+    await ttsService.applyPresetValues(
+      speechRate: active.speechRate,
+      pitch: active.pitch,
+      volume: active.volume,
+      voiceKey: active.voiceKey,
+      locale: active.locale,
+      voiceName: active.voiceName,
+    );
+  }
+
   final bgmService = BgmService();
   await bgmService.init();
 

@@ -300,63 +300,30 @@ class _SettingsViewState extends State<SettingsView> {
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Column(
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.desktop_windows_outlined,
-                        color: Colors.blueAccent, size: 22),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Windows (PC & Laptop)',
-                            style: TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            context.tr('guide_windows'),
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: theme.hintColor,
-                            ),
-                          ),
-                        ],
+                const Icon(Icons.phone_android_outlined,
+                    color: Colors.green, size: 22),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Android (Điện thoại & Máy tính bảng)',
+                        style: TextStyle(fontWeight: FontWeight.w700),
                       ),
-                    ),
-                  ],
-                ),
-                const Divider(height: 20),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.phone_android_outlined,
-                        color: Colors.green, size: 22),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Android (Điện thoại & Máy tính bảng)',
-                            style: TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            context.tr('guide_android'),
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: theme.hintColor,
-                            ),
-                          ),
-                        ],
+                      const SizedBox(height: 4),
+                      Text(
+                        context.tr('guide_android'),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: theme.hintColor,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -373,14 +340,14 @@ class _SettingsViewState extends State<SettingsView> {
           child: Column(
             children: [
               ListTile(
-                leading: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary,
-                    borderRadius: BorderRadius.circular(10),
+                leading: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.asset(
+                    'assets/logo.png',
+                    width: 40,
+                    height: 40,
+                    fit: BoxFit.contain,
                   ),
-                  child: const Icon(Icons.graphic_eq, color: Colors.white),
                 ),
                 title: const Text(
                   'Readio Text to Speech',

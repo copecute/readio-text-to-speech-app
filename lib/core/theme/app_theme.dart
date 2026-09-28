@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  static const Color primarySeed = Color(0xFF4F46E5); // Indigo 600
-  static const Color secondarySeed = Color(0xFF06B6D4); // Cyan 500
+  /// Brand cyan from Readio logo
+  static const Color primarySeed = Color(0xFF35B9C8);
+  static const Color secondarySeed = Color(0xFF1A9AA8);
+  /// Lighter accent for dark surfaces
+  static const Color primaryOnDark = Color(0xFF5ECAD6);
 
   // Light colors
   static const Color lightBg = Color(0xFFF8FAFC);
@@ -21,6 +24,7 @@ class AppTheme {
       seedColor: primarySeed,
       brightness: Brightness.light,
       surface: lightSurface,
+      primary: primarySeed,
     );
 
     return ThemeData(
@@ -118,6 +122,7 @@ class AppTheme {
       seedColor: primarySeed,
       brightness: Brightness.dark,
       surface: darkSurface,
+      primary: primaryOnDark,
     );
 
     return ThemeData(
@@ -153,15 +158,15 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: primarySeed, width: 2),
+          borderSide: const BorderSide(color: primaryOnDark, width: 2),
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       ),
       sliderTheme: SliderThemeData(
-        activeTrackColor: const Color(0xFF818CF8),
-        inactiveTrackColor: const Color(0xFF818CF8).withAlpha(50),
-        thumbColor: const Color(0xFF818CF8),
-        overlayColor: const Color(0xFF818CF8).withAlpha(30),
+        activeTrackColor: primaryOnDark,
+        inactiveTrackColor: primaryOnDark.withAlpha(50),
+        thumbColor: primaryOnDark,
+        overlayColor: primaryOnDark.withAlpha(30),
         trackHeight: 6,
         thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
       ),
@@ -181,7 +186,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
-          side: const BorderSide(color: Color(0xFF818CF8), width: 1.5),
+          side: const BorderSide(color: primaryOnDark, width: 1.5),
           textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
         ),
       ),
@@ -191,7 +196,7 @@ class AppTheme {
         indicatorColor: primarySeed.withAlpha(60),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return const TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: Color(0xFF818CF8));
+            return const TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: primaryOnDark);
           }
           return const TextStyle(fontWeight: FontWeight.w500, fontSize: 12);
         }),
@@ -200,10 +205,10 @@ class AppTheme {
         backgroundColor: const Color(0xFF1E293B),
         elevation: 2,
         indicatorColor: primarySeed.withAlpha(60),
-        selectedIconTheme: const IconThemeData(color: Color(0xFF818CF8)),
+        selectedIconTheme: const IconThemeData(color: primaryOnDark),
         selectedLabelTextStyle: const TextStyle(
           fontWeight: FontWeight.w700,
-          color: Color(0xFF818CF8),
+          color: primaryOnDark,
           fontSize: 13,
         ),
       ),
